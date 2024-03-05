@@ -1,0 +1,8 @@
+fiftyone:
+  version: ">=0.23.5"
+name: "@mmoollllee/timestamps"
+version: "0.0.1"
+description: "Filter by various timestamp informations from filename"
+url: "https://github.com/mmoollllee/timestamps"
+operators:
+  - compute_timestamps_from_filepath
