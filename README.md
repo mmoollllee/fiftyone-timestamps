@@ -18,8 +18,11 @@ import fiftyone.operators as foo
 
 dataset = fo.load_dataset("quickstart")
 
-compute_timestamps = foo.get_operator("@mmoollllee/timestamps/compute_timestamps_from_filepath")
+compute_timestamps = foo.get_operator("@mmoollllee/timestamps/compute_timestamps")
 
-## Compute the brightness of all images in the dataset
-compute_timestamps(dataset)
+## Compute from filepath with custom regex pattern where filenames look like `image-2024-12-30_23-59-59.jpg`
+compute_timestamps(dataset, source="filepath", regex=r".*([0-9]{4})-?([0-9]{2})-?([0-9]{2})_([0-9]{2})?-?([0-9]{2})?-?([0-9]{2})?.*?")
+
+## Compute from created_at
+compute_timestamps(dataset, source="created_at")
 ```

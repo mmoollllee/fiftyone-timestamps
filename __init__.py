@@ -11,31 +11,37 @@ def get_filepath(sample):
     )
 
 
-def timestamp_from_filepath(f):
-    matches = re.search(r".*([0-9]{4})-?([0-9]{2})-?([0-9]{2})_([0-9]{2})?-?([0-9]{2})?-?([0-9]{2})?.*?", f).groups()
+def timestamp_from_filepath(f, regex):
+    matches = re.search(regex, f).groups()
     matches = ['00' if i is None else i for i in matches] # Replace not found items with "01"
     return matches
 
 
-def compute_timestamps_from_filepath(sample):
-    year, month, day, hour, minute, second = timestamp_from_filepath(get_filepath(sample))
+def compute_timestamps_from_filepath(sample, regex):
+    year, month, day, hour, minute, second = timestamp_from_filepath(get_filepath(sample), regex)
     string = f'{year}-{month}-{day}_{hour}-{minute}-{second}'
     dt = datetime.strptime(string, "%Y-%m-%d_%H-%M-%S")
     weekday = dt.weekday()
     time = int(hour) + (int(minute) / 60) + (int(second) / 6000)
     return dt, weekday, time
 
+def compute_timestamps(sample):
+    dt = sample.get_field("_id").to_date()
+    weekday = dt.weekday()
+    time = int(dt.hour) + (int(dt.minute) / 60) + (int(dt.second) / 6000)
+    return dt, weekday, time
+
 
 ################################################################
 ################################################################
 
-class ComputeTimestampsFromFilepath(foo.Operator):
+class ComputeTimestamps(foo.Operator):
     @property
     def config(self):
         return foo.OperatorConfig(
-            name="compute_timestamps_from_filepath",
-            label="Compute Timestamps from Filepath",
-            description="Filter by various timestamp informations found in filepath"
+            name="compute_timestamps",
+            label="Compute Timestamps from filepath or sample's creation date",
+            description="Filter by various timestamp informations found in filepath or sample`s creation date"
         )
 
 
@@ -48,17 +54,28 @@ class ComputeTimestampsFromFilepath(foo.Operator):
         ctx.dataset.add_sample_field("weekday", fo.IntField)
         ctx.dataset.add_sample_field("time", fo.FloatField)
 
+        source = ctx.params.get("source")
+        regex = ctx.params.get("regex")
         for sample in view.iter_samples(autosave=True, progress=True):
-            dt, weekday, time = compute_timestamps_from_filepath(sample)
+            if source == "created_at":
+                dt, weekday, time = compute_timestamps(sample)
+            elif source == "filepath" and regex:
+                dt, weekday, time = compute_timestamps_from_filepath(sample, regex)
+            else:
+                return "parameters not allowed"
             sample["datetime"] = dt
             sample["weekday"] = weekday
             sample["time"] = time
 
-    def __call__(self, sample_collection):
+    def __call__(self, sample_collection, source="filepath", regex=r".*([0-9]{4})-?([0-9]{2})-?([0-9]{2})_([0-9]{2})?-?([0-9]{2})?-?([0-9]{2})?.*?"):
         ctx = dict(view=sample_collection.view())
-        params = dict(target="CURRENT_VIEW")
+        params = dict(
+            target="CURRENT_VIEW",
+            source=source,
+            regex=regex
+            )
         return foo.execute_operator(self.uri, ctx, params=params)
 
 
 def register(p):
-    p.register(ComputeTimestampsFromFilepath)
+    p.register(ComputeTimestamps)
