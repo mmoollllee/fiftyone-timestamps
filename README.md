@@ -26,3 +26,6 @@ compute_timestamps(dataset, source="filepath", regex=r".*([0-9]{4})-?([0-9]{2})-
 ## Compute from created_at
 compute_timestamps(dataset, source="created_at")
 ```
+
+## ToDos
+- [] Implement `timeofday` field with Daytime / Nighttime / Morning / Evening by using [suntime](https://github.com/SatAgro/suntime)
