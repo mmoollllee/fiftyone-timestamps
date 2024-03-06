@@ -21,13 +21,13 @@ dataset = fo.load_dataset("quickstart")
 compute_timestamps = foo.get_operator("@mmoollllee/timestamps/compute_timestamps")
 
 ## Compute from filepath with custom regex pattern where filenames look like `image-2024-12-30_23-59-59.jpg`
-compute_timestamps(dataset, source="filepath", regex=r".*([0-9]{4})-?([0-9]{2})-?([0-9]{2})_([0-9]{2})?-?([0-9]{2})?-?([0-9]{2})?.*?")
+compute_timestamps(dataset, source="filepath", regex=r".*([0-9]{4})-?([0-9]{2})-?([0-9]{2})_([0-9]{2})?-?([0-9]{2})?-?([0-9]{2})?.*?", timezone="Europe/Berlin")
 
 ## Compute from created_at
-compute_timestamps(dataset, source="created_at")
+compute_timestamps(dataset, source="created_at", timezone="Europe/Berlin")
 
 ## If geo[lat, long] is set, `timeofday` will be computed with "sunrise", "morning", "day", "evening", "sunset", "night"
-compute_timestamps(dataset, geo=[48.12345,9.12345], tz="Europe/Berlin")
+compute_timestamps(dataset, geo=[48.12345,9.12345], timezone="Europe/Berlin")
 ```
 
 ## ToDos
