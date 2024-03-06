@@ -8,7 +8,7 @@ This enables you to filter your dataset by:
 - `time` where **6.5** would be 6am and 19.0 would be 7pm
 - `timeofday` based on provided geolocation can be one of **dawn, sunrise, morning, day, evening, sunset, dusk, night**
 
-![FiftyOne Sidebar Filters Example](screenshot.png)
+![FiftyOne Sidebar Filters Example](screenshot.png | width=280)
 
 ## Installation
 
