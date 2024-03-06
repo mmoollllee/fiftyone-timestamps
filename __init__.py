@@ -7,6 +7,7 @@ from suntime import Sun
 
 import fiftyone as fo
 import fiftyone.operators as foo
+from fiftyone import ViewField as F
 
 
 def get_filepath(sample):
@@ -51,8 +52,8 @@ def get_timeofday(
         return "night"
 
 
-def compute_timestamps_from_filepath(sample, regex, tzinfo, geo=None):
-    year, month, day, hour, minute, second = timestamp_from_filepath(get_filepath(sample), regex)
+def compute_timestamps_from_filepath(filepath, regex, tzinfo, geo=None):
+    year, month, day, hour, minute, second = timestamp_from_filepath(filepath, regex)
     string = f'{year}-{month}-{day}_{hour}-{minute}-{second}'
     dt = datetime.strptime(string, "%Y-%m-%d_%H-%M-%S").replace(tzinfo=tzinfo)
     weekday = dt.weekday()
@@ -64,8 +65,8 @@ def compute_timestamps_from_filepath(sample, regex, tzinfo, geo=None):
 
     return dt, weekday, time, timeofday
 
-def compute_timestamps(sample, tzinfo, geo=None):
-    dt = sample.get_field("_id").to_date().replace(tzinfo=tzinfo)
+def compute_timestamps(dt, tzinfo, geo=None):
+    dt = dt.replace(tzinfo=tzinfo)
     weekday = dt.weekday()
     time = int(dt.hour) + (int(dt.minute) / 60) + (int(dt.second) / 6000)
         
@@ -73,7 +74,7 @@ def compute_timestamps(sample, tzinfo, geo=None):
     if type(geo) is list:
         timeofday = get_timeofday(dt=dt, geo=geo, tzinfo=tzinfo)
 
-    return dt, weekday, time, timeofday
+    return weekday, time, timeofday
 
 
 ################################################################
@@ -97,28 +98,33 @@ class ComputeTimestamps(foo.Operator):
         source = ctx.params.get("source")
         regex = ctx.params.get("regex")
         geo = ctx.params.get("geo")
-
         tzinfo = tz.gettz(ctx.params.get("timezone"))
 
-        ctx.dataset.add_sample_field("datetime", fo.DateTimeField)
-        ctx.dataset.add_sample_field("weekday", fo.IntField)
-        ctx.dataset.add_sample_field("time", fo.FloatField)
-        if geo:
-            ctx.dataset.add_sample_field("timeofday", fo.StringField)
+        dts, weekdays, times, timeofdays = [], [], [], []
+        if source == "created_at":
+            dts = view.values(F("_id").to_date())
+            for dt in dts:
+                weekday, time, timeofday = compute_timestamps(dt, tzinfo, geo)
+                weekdays.append(weekday)
+                times.append(time)
+                if geo:
+                    timeofdays.append(timeofday)
+        elif source == "filepath" and regex:
+            for filepath in view.values("filepath"):
+                dt, weekday, time, timeofday = compute_timestamps_from_filepath(filepath, regex, tzinfo, geo)
+                dts.append(dt)
+                weekdays.append(weekday)
+                times.append(time)
+                if geo:
+                    timeofdays.append(timeofday)
+        else:
+            return "parameters not allowed"
 
-        for sample in view.iter_samples(autosave=True, progress=True):
-            if source == "created_at":
-                dt, weekday, time, timeofday = compute_timestamps(sample, tzinfo, geo)
-            elif source == "filepath" and regex:
-                dt, weekday, time, timeofday = compute_timestamps_from_filepath(sample, regex, tzinfo, geo)
-            else:
-                return "parameters not allowed"
-            
-            sample["datetime"] = dt
-            sample["weekday"] = weekday
-            sample["time"] = time
-            if geo:
-                sample["timeofday"] = timeofday
+        view.set_values("datetime", dts)
+        view.set_values("weekday", weekdays)
+        view.set_values("time", times)
+        if geo:
+            view.set_values("timeofday", timeofdays)
 
     def __call__(
         self, 
