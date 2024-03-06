@@ -1,8 +1,8 @@
 fiftyone:
   version: ">=0.23.5"
 name: "@mmoollllee/timestamps"
-version: "0.0.2"
+version: "0.0.3"
 description: "Filter by various timestamp informations found in filepath or sample`s creation date"
-url: "https://github.com/mmoollllee/timestamps"
+url: "https://github.com/mmoollllee/fiftyone-timestamps"
 operators:
   - compute_timestamps
