@@ -10,34 +10,37 @@ import fiftyone.operators as foo
 from fiftyone import ViewField as F
 
 
-def get_filepath(sample):
-    return (
-        sample.local_path if hasattr(sample, "local_path") else sample.filepath
-    )
-
-
-def timestamp_from_filepath(f, regex):
+def timestamp_from_filepath(f: str, regex: str) -> datetime:
     matches = re.search(regex, f).groups()
     matches = ['00' if i is None else i for i in matches] # Replace not found items with "00"
-    return matches
+    year, month, day, hour, minute, second = matches
+    return datetime.strptime(f'{year}-{month}-{day}_{hour}-{minute}-{second}', "%Y-%m-%d_%H-%M-%S")
+
 
 def get_timeofday(
         dt: datetime,
         geo: list,
         tzinfo: tzfile,
-        sunrise_length: timedelta = timedelta(minutes=10),
-        sunset_length: timedelta = timedelta(minutes=10),
+        dawn_length: timedelta = timedelta(minutes=15),
+        dusk_length: timedelta = timedelta(minutes=15),
+        sunrise_length: timedelta = timedelta(minutes=15),
+        sunset_length: timedelta = timedelta(minutes=15),
         morning_length: timedelta = timedelta(hours=1),
         evening_length: timedelta = timedelta(hours=1)
-    ):
+    ) -> str:
     sun = Sun(*geo)
     sunrise = sun.get_sunrise_time(dt, tzinfo)
     morning_end = sunrise + morning_length
     sunset = sun.get_sunset_time(dt, tzinfo)
+    # Fix sunset as stated here: https://github.com/SatAgro/suntime/issues/12#issuecomment-621755084
+    if sunset < sunrise:
+        sunset = sunset + timedelta(days=1)
     evening_begin = sunset - evening_length
 
-    if dt <= sunrise - sunrise_length:
+    if dt <= sunrise - sunrise_length - dawn_length:
         return "night"
+    elif dt <= sunrise - sunrise_length:
+        return "dawn"
     elif dt <= sunrise + sunrise_length:
         return "sunrise"
     elif dt <= morning_end:
@@ -48,30 +51,19 @@ def get_timeofday(
         return "evening"
     elif dt <= sunset + sunset_length:
         return "sunset"
+    elif dt <= sunset + sunset_length + dusk_length:
+        return "dusk"
     else:
         return "night"
 
 
-def compute_timestamps_from_filepath(filepath, regex, tzinfo, geo=None):
-    year, month, day, hour, minute, second = timestamp_from_filepath(filepath, regex)
-    string = f'{year}-{month}-{day}_{hour}-{minute}-{second}'
-    dt = datetime.strptime(string, "%Y-%m-%d_%H-%M-%S").replace(tzinfo=tzinfo)
-    weekday = dt.weekday()
-    time = int(hour) + (int(minute) / 60) + (int(second) / 6000)
-    
-    timeofday = None
-    if type(geo) is list:
-        timeofday = get_timeofday(dt=dt, geo=geo, tzinfo=tzinfo)
-
-    return dt, weekday, time, timeofday
-
-def compute_timestamps(dt, tzinfo, geo=None):
+def compute_timestamps(dt: datetime, tzinfo: tzfile, geo: Optional[list] = None) -> list:
     dt = dt.replace(tzinfo=tzinfo)
     weekday = dt.weekday()
     time = int(dt.hour) + (int(dt.minute) / 60) + (int(dt.second) / 6000)
         
     timeofday = None
-    if type(geo) is list:
+    if geo:
         timeofday = get_timeofday(dt=dt, geo=geo, tzinfo=tzinfo)
 
     return weekday, time, timeofday
@@ -103,22 +95,18 @@ class ComputeTimestamps(foo.Operator):
         dts, weekdays, times, timeofdays = [], [], [], []
         if source == "created_at":
             dts = view.values(F("_id").to_date())
-            for dt in dts:
-                weekday, time, timeofday = compute_timestamps(dt, tzinfo, geo)
-                weekdays.append(weekday)
-                times.append(time)
-                if geo:
-                    timeofdays.append(timeofday)
         elif source == "filepath" and regex:
             for filepath in view.values("filepath"):
-                dt, weekday, time, timeofday = compute_timestamps_from_filepath(filepath, regex, tzinfo, geo)
-                dts.append(dt)
-                weekdays.append(weekday)
-                times.append(time)
-                if geo:
-                    timeofdays.append(timeofday)
+                dts.append(timestamp_from_filepath(filepath, regex))
         else:
             return "parameters not allowed"
+
+        for dt in dts:
+            weekday, time, timeofday = compute_timestamps(dt, tzinfo, geo)
+            weekdays.append(weekday)
+            times.append(time)
+            if geo:
+                timeofdays.append(timeofday)
 
         view.set_values("datetime", dts)
         view.set_values("weekday", weekdays)
